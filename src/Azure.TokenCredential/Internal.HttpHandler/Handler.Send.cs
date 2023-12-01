@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
+using Azure.Core;
 
 namespace GarageGroup.Infra;
 
@@ -23,8 +26,49 @@ partial class TokenCredentialHandler
         }
 
         var token = await tokenCredential.GetTokenAsync(context.Value, cancellationToken).ConfigureAwait(false);
-        request.Headers.Authorization = new(AuthorizationScheme, token.Token);
+        request.Headers.Authorization = BuildAuthenticationHeaderValue(token);
 
         return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private TokenRequestContext? CreateRequestContext(Uri? requestUri)
+    {
+        if (scopes.Length > 0)
+        {
+            return new(
+                scopes: scopes);
+        }
+
+        if (requestUri is null)
+        {
+            return null;
+        }
+
+#if NET8_0_OR_GREATER
+        return new(
+            scopes:
+            [
+                new Uri(requestUri, ScopeRelativeUri).ToString()
+            ]);
+#else
+        return new(
+            scopes: new[]
+            {
+                new Uri(requestUri, ScopeRelativeUri).ToString()
+            });
+#endif
+    }
+
+    private AuthenticationHeaderValue BuildAuthenticationHeaderValue(AccessToken accessToken)
+    {
+        if (tokenType is TokenType.ResourceToken)
+        {
+            var token = HttpUtility.UrlEncode(string.Format(ResourceTokenTemplate, accessToken.Token));
+            return new(token);
+        }
+        else
+        {
+            return new(AuthorizationScheme, accessToken.Token);
+        }
     }
 }
