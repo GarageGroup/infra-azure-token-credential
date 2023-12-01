@@ -19,7 +19,11 @@ public static class TokenCredentialHandlerDependency
             ArgumentNullException.ThrowIfNull(serviceProvider);
             ArgumentNullException.ThrowIfNull(httpMessageHandler);
 
-            return new(httpMessageHandler, serviceProvider.GetRequiredService<TokenCredential>(), scopes);
+            return new(
+                httpMessageHandler,
+                serviceProvider.GetRequiredService<TokenCredential>(),
+                TokenType.Default,
+                scopes);
         }
     }
 
@@ -37,7 +41,11 @@ public static class TokenCredentialHandlerDependency
             ArgumentNullException.ThrowIfNull(serviceProvider);
             ArgumentNullException.ThrowIfNull(httpMessageHandler);
 
-            return new(httpMessageHandler, serviceProvider.GetRequiredService<TokenCredential>(), scopesResolver.Invoke(serviceProvider));
+            return new(
+                httpMessageHandler,
+                serviceProvider.GetRequiredService<TokenCredential>(),
+                TokenType.Default,
+                scopesResolver.Invoke(serviceProvider));
         }
     }
 
@@ -56,7 +64,11 @@ public static class TokenCredentialHandlerDependency
             ArgumentNullException.ThrowIfNull(serviceProvider);
             ArgumentNullException.ThrowIfNull(httpMessageHandler);
 
-            return new(httpMessageHandler, tokenCredentialResolver.Invoke(serviceProvider), scopes);
+            return new(
+                httpMessageHandler,
+                tokenCredentialResolver.Invoke(serviceProvider),
+                TokenType.Default,
+                scopes);
         }
     }
 
@@ -76,7 +88,29 @@ public static class TokenCredentialHandlerDependency
             ArgumentNullException.ThrowIfNull(serviceProvider);
             ArgumentNullException.ThrowIfNull(httpMessageHandler);
 
-            return new(httpMessageHandler, tokenCredentialResolver.Invoke(serviceProvider), scopesResolver.Invoke(serviceProvider));
+            return new(
+                httpMessageHandler,
+                tokenCredentialResolver.Invoke(serviceProvider),
+                TokenType.Default,
+                scopesResolver.Invoke(serviceProvider));
+        }
+    }
+
+    public static Dependency<HttpMessageHandler> UseTokenCredentialResource(
+        this Dependency<HttpMessageHandler> dependency)
+    {
+        ArgumentNullException.ThrowIfNull(dependency);
+        return dependency.Map<HttpMessageHandler>(ResolveHandler);
+
+        static TokenCredentialHandler ResolveHandler(IServiceProvider serviceProvider, HttpMessageHandler httpMessageHandler)
+        {
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            ArgumentNullException.ThrowIfNull(httpMessageHandler);
+
+            return new(
+                httpMessageHandler,
+                serviceProvider.GetRequiredService<TokenCredential>(),
+                TokenType.ResourceToken);
         }
     }
 }
