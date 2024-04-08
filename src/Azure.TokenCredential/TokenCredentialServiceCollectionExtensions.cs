@@ -7,7 +7,11 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class TokenCredentialServiceCollectionExtensions
 {
+    private const string StandardTenantIdKey = "AZURE_TENANT_ID";
+
     private const string StandardClientIdKey = "AZURE_CLIENT_ID";
+
+    private const string StandardClientSecretKey = "AZURE_CLIENT_SECRET";
 
     public static IServiceCollection AddTokenCredentialStandardAsSingleton(this IServiceCollection services)
     {
@@ -19,13 +23,21 @@ public static class TokenCredentialServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        var clientId = serviceProvider.GetRequiredService<IConfiguration>()[StandardClientIdKey];
+        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
-        if (string.IsNullOrEmpty(clientId))
+        var clientId = configuration[StandardClientIdKey];
+        if (string.IsNullOrWhiteSpace(clientId))
         {
             return new AzureCliCredential();
         }
 
-        return new ManagedIdentityCredential(clientId: clientId);
+        var clientSecret = configuration[StandardClientSecretKey];
+        if (string.IsNullOrWhiteSpace(clientSecret))
+        {
+            return new ManagedIdentityCredential(clientId: clientId);
+        }
+
+        var tenantId = configuration[StandardTenantIdKey];
+        return new ClientSecretCredential(tenantId: tenantId, clientId: clientId, clientSecret: clientSecret);
     }
 }
