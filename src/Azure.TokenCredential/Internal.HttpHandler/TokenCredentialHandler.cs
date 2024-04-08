@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Net.Http;
 using Azure.Core;
 
@@ -28,10 +27,6 @@ internal sealed partial class TokenCredentialHandler : DelegatingHandler
     {
         this.tokenCredential = tokenCredential;
         this.tokenType = tokenType;
-#if NET8_0_OR_GREATER
         this.scopes = scopes ?? [];
-#else
-        this.scopes = scopes ?? Array.Empty<string>();
-#endif
     }
 }

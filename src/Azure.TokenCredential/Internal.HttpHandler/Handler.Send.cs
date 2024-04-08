@@ -44,19 +44,11 @@ partial class TokenCredentialHandler
             return null;
         }
 
-#if NET8_0_OR_GREATER
         return new(
             scopes:
             [
                 new Uri(requestUri, ScopeRelativeUri).ToString()
             ]);
-#else
-        return new(
-            scopes: new[]
-            {
-                new Uri(requestUri, ScopeRelativeUri).ToString()
-            });
-#endif
     }
 
     private AuthenticationHeaderValue BuildAuthenticationHeaderValue(AccessToken accessToken)
