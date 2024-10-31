@@ -8,8 +8,6 @@ internal sealed partial class TokenCredentialHandler : DelegatingHandler
 {
     private const string ScopeRelativeUri = "/.default";
 
-    private const string AuthorizationScheme = "Bearer";
-
     private const string ResourceTokenTemplate = "type=aad&ver=1.0&sig={0}";
 
     private readonly TokenCredential tokenCredential;

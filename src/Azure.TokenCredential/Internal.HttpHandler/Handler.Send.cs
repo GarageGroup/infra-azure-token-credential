@@ -60,7 +60,7 @@ partial class TokenCredentialHandler
         }
         else
         {
-            return new(AuthorizationScheme, accessToken.Token);
+            return new(accessToken.TokenType, accessToken.Token);
         }
     }
 }
