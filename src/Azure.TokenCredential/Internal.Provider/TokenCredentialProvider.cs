@@ -13,7 +13,8 @@ internal sealed partial class TokenCredentialProvider
         return new(
             tenantId: configuration[StandardTenantIdKey],
             clientId: configuration[StandardClientIdKey],
-            clientSecret: configuration[StandardClientSecretKey]);
+            clientSecret: configuration[StandardClientSecretKey],
+            tokenType: configuration[StandardTokenTypeKey]);
     }
 
     private const string StandardTenantIdKey = "AZURE_TENANT_ID";
@@ -22,16 +23,21 @@ internal sealed partial class TokenCredentialProvider
 
     private const string StandardClientSecretKey = "AZURE_CLIENT_SECRET";
 
+    private const string StandardTokenTypeKey = "AZURE_TOKEN_TYPE";
+
     private readonly string? tenantId;
 
     private readonly string? clientId;
 
     private readonly string? clientSecret;
 
-    private TokenCredentialProvider(string? tenantId, string? clientId, string? clientSecret)
+    private readonly string? tokenType;
+
+    private TokenCredentialProvider(string? tenantId, string? clientId, string? clientSecret, string? tokenType)
     {
         this.tenantId = tenantId;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+        this.tokenType = tokenType;
     }
 }
