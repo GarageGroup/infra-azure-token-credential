@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Azure.Core;
 using GarageGroup.Infra;
 
@@ -26,7 +26,11 @@ public static class TokenCredentialServiceCollectionExtensions
         static RefreshableTokenCredential ResolveRefreshableTokenCredentialStandard(IServiceProvider serviceProvider)
         {
             ArgumentNullException.ThrowIfNull(serviceProvider);
-            return new(TokenCredentialProvider.InternalResolveStandard(serviceProvider));
+
+            return new(
+                credentialProvider: TokenCredentialProvider.InternalResolveStandard(serviceProvider),
+                inMemoryCache: AccessTokenInMemoryCache.Instance,
+                remoteCache: AccessTokenRemoteCache.InternalResolveStandard(serviceProvider));
         }
     }
 }

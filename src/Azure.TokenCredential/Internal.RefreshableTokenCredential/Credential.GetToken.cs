@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Core;
@@ -9,49 +8,56 @@ partial class RefreshableTokenCredential
 {
     public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken)
     {
-        var accessToken = GetAccessTokenFromInMemoryCache(requestContext);
+        var accessToken = inMemoryCache.GetToken(requestContext);
         if (accessToken is not null)
         {
             return accessToken.Value;
         }
 
-        var newToken = innerCredentialProvider.GetTokenCredential().GetToken(requestContext, cancellationToken);
-        return inMemoryCache.AddOrUpdate(requestContext, newToken, InnerGetNewToken);
+        if (remoteCache is not null)
+        {
+            accessToken = remoteCache.GetTokenAsync(requestContext, cancellationToken).AsTask().Result;
+            if (accessToken is not null)
+            {
+                inMemoryCache.SaveToken(requestContext, accessToken.Value);
+                return accessToken.Value;
+            }
+        }
 
-        AccessToken InnerGetNewToken(TokenRequestContext _, AccessToken oldToken)
-            =>
-            newToken;
+        var newToken = credentialProvider.GetTokenCredential().GetToken(requestContext, cancellationToken);
+
+        inMemoryCache.SaveToken(requestContext, newToken);
+        remoteCache?.SaveTokenAsync(requestContext, newToken, cancellationToken).Wait(cancellationToken);
+
+        return newToken;
     }
 
     public override async ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken)
     {
-        var accessToken = GetAccessTokenFromInMemoryCache(requestContext);
+        var accessToken = inMemoryCache.GetToken(requestContext);
         if (accessToken is not null)
         {
             return accessToken.Value;
         }
 
-        var newToken = await innerCredentialProvider.GetTokenCredential().GetTokenAsync(requestContext, cancellationToken).ConfigureAwait(false);
-        return inMemoryCache.AddOrUpdate(requestContext, newToken, InnerGetNewToken);
-
-        AccessToken InnerGetNewToken(TokenRequestContext _, AccessToken oldToken)
-            =>
-            newToken;
-    }
-
-    private AccessToken? GetAccessTokenFromInMemoryCache(TokenRequestContext requestContext)
-    {
-        if (inMemoryCache.TryGetValue(requestContext, out var accessToken) is false)
+        if (remoteCache is not null)
         {
-            return null;
+            accessToken = await remoteCache.GetTokenAsync(requestContext, cancellationToken).ConfigureAwait(false);
+            if (accessToken is not null)
+            {
+                inMemoryCache.SaveToken(requestContext, accessToken.Value);
+                return accessToken.Value;
+            }
         }
 
-        var minExpirationTime = DateTimeOffset.Now.AddMinutes(ExpirationPeriodInMinutes);
-        if (accessToken.ExpiresOn < minExpirationTime)
+        var newToken = await credentialProvider.GetTokenCredential().GetTokenAsync(requestContext, cancellationToken).ConfigureAwait(false);
+
+        inMemoryCache.SaveToken(requestContext, newToken);
+        if (remoteCache is not null)
         {
-            return null;
+            await remoteCache.SaveTokenAsync(requestContext, newToken, cancellationToken).ConfigureAwait(false);
         }
 
-        return accessToken;
+        return newToken;
     }
 }
