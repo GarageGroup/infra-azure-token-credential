@@ -10,24 +10,24 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 10.0.x
 
     - name: Create Local NuGet Directory
       run: mkdir ~/nuget
 
-    - name: Restore Infra.Azure.TokenCredential
-      run: dotnet restore ./*/Infra.Azure.TokenCredential.slnx
+    - name: Restore slnx
+      run: dotnet restore
 
-    - name: Build Infra.Azure.TokenCredential
-      run: dotnet build ./*/Infra.Azure.TokenCredential.slnx --no-restore -c Release
+    - name: Build slnx
+      run: dotnet build --no-restore -c Release
 
-    - name: Pack Infra.Azure.TokenCredential
-      run: dotnet pack ./*/Infra.Azure.TokenCredential.slnx --no-build -o ~/nuget -c Release
+    - name: Pack slnx
+      run: dotnet pack --no-build -o ~/nuget -c Release
 
     # Push
 

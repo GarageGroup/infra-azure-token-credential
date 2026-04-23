@@ -42,7 +42,9 @@ internal sealed partial class AccessTokenRemoteCache
 
     private const int SasTokenTtlInSeconds = 60;
 
-    private const string ContainerName = "token-cache";
+    private const string SectionKey = "AzureTokenCache";
+
+    private const string DefaultContainerName = "token-cache";
 
     private const string ContainerResource = "c";
 
@@ -75,13 +77,32 @@ internal sealed partial class AccessTokenRemoteCache
 
     private static StorageOption? ParseStorageOption(IConfiguration configuration, ILogger<AccessTokenRemoteCache>? logger)
     {
-        var storageConnectionString = configuration["AzureWebJobsStorage"];
-        if (string.IsNullOrWhiteSpace(storageConnectionString))
+        var section = configuration.GetSection(SectionKey);
+        if (section.GetValue<bool>("Disabled") is true)
         {
-            logger?.LogWarning(
-                "AzureWebJobsStorage configuration is not found or empty. AccessTokenRemoteCache will not be used.");
+            logger?.LogInformation(
+                "{SectionKey} configuration is disabled. AccessTokenRemoteCache will not be used.", SectionKey);
 
             return null;
+        }
+
+        var storageConnectionString = section["ConnectionString"];
+        if (string.IsNullOrWhiteSpace(storageConnectionString))
+        {
+            storageConnectionString = configuration["AzureWebJobsStorage"];
+            if (string.IsNullOrWhiteSpace(storageConnectionString))
+            {
+                logger?.LogInformation(
+                    "{SectionKey} configuration is not found or empty. AccessTokenRemoteCache will not be used.", SectionKey);
+
+                return null;
+            }
+        }
+
+        var containerName = section["ContainerName"];
+        if (string.IsNullOrWhiteSpace(containerName))
+        {
+            containerName = DefaultContainerName;
         }
 
         Dictionary<string, string> connectionItems = new(StringComparer.OrdinalIgnoreCase);
@@ -100,7 +121,7 @@ internal sealed partial class AccessTokenRemoteCache
 
         if (string.Equals(connectionItems.GetValueOrDefault("UseDevelopmentStorage"), "true", StringComparison.OrdinalIgnoreCase))
         {
-            logger?.LogWarning(
+            logger?.LogInformation(
                 "Azure Storage emulator connection string is detected for AzureWebJobsStorage. AccessTokenRemoteCache will not be used.");
 
             return null;
@@ -130,7 +151,7 @@ internal sealed partial class AccessTokenRemoteCache
 
         if (string.IsNullOrWhiteSpace(endpointSuffix))
         {
-            logger?.LogError(
+            logger?.LogWarning(
                  "Unable to resolve EndpointSuffix for AzureWebJobsStorage connection string. AccessTokenRemoteCache will not be used.");
 
             return null;
@@ -141,7 +162,8 @@ internal sealed partial class AccessTokenRemoteCache
             EndpointsProtocol = endpointsProtocol,
             AccountName = accountName,
             AccountKey = accountKey,
-            EndpointSuffix = endpointSuffix
+            EndpointSuffix = endpointSuffix,
+            ContainerName = containerName
         };
     }
 
@@ -154,6 +176,8 @@ internal sealed partial class AccessTokenRemoteCache
         public required string AccountKey { get; init; }
 
         public required string EndpointSuffix { get; init; }
+
+        public required string ContainerName { get; init; }
     }
 
     private HttpRequestMessage BuildSharedKeyRequest(HttpMethod method, string requestUri)
@@ -283,7 +307,7 @@ internal sealed partial class AccessTokenRemoteCache
 
         var resource = string.IsNullOrWhiteSpace(fileName) ? ContainerResource : BlobResource;
 
-        var pathBuilder = new StringBuilder($"/blob/{option.AccountName}/{ContainerName}");
+        var pathBuilder = new StringBuilder($"/blob/{option.AccountName}/{option.ContainerName}");
         if (string.IsNullOrEmpty(fileName) is false)
         {
             pathBuilder = pathBuilder.Append('/').Append(fileName);
@@ -309,7 +333,7 @@ internal sealed partial class AccessTokenRemoteCache
             string.Empty
         ];
 
-        var urlBuilder = new StringBuilder($"/{ContainerName}");
+        var urlBuilder = new StringBuilder($"/{option.ContainerName}");
         if (string.IsNullOrEmpty(fileName) is false)
         {
             urlBuilder = urlBuilder.Append('/').Append(fileName);

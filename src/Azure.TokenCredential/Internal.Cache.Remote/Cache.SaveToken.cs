@@ -49,7 +49,7 @@ partial class AccessTokenRemoteCache
         logger?.LogWarning(
                 "Token cache blob save returned 404. " +
                 "Container '{ContainerName}' likely does not exist. Trying to create container via SharedKey.",
-                ContainerName);
+                option.ContainerName);
 
         var isContainerCreated = await EnsureContainerExistsBySharedKeyAsync(cancellationToken).ConfigureAwait(false);
         if (isContainerCreated is false)
@@ -108,13 +108,13 @@ partial class AccessTokenRemoteCache
 
     private async Task<bool> EnsureContainerExistsBySharedKeyAsync(CancellationToken cancellationToken)
     {
-        logger?.LogInformation("Trying to create '{ContainerName}' container using SharedKey authorization.", ContainerName);
+        logger?.LogInformation("Trying to create '{ContainerName}' container using SharedKey authorization.", option.ContainerName);
 
         using var httpClient = BuildHttpClient();
 
         using var createRequest = BuildSharedKeyRequest(
             method: HttpMethod.Put,
-            requestUri: $"/{ContainerName}?restype=container");
+            requestUri: $"/{option.ContainerName}?restype=container");
 
         using var createResponse = await SendAsync(
             httpClient: httpClient,
@@ -126,7 +126,7 @@ partial class AccessTokenRemoteCache
         {
             logger?.LogDebug(
                 "AccessTokenRemoteCache fallback has ensured '{ContainerName}' container exists via SharedKey.",
-                ContainerName);
+                option.ContainerName);
 
             return true;
         }
@@ -136,7 +136,7 @@ partial class AccessTokenRemoteCache
         logger?.LogError(
             "AccessTokenRemoteCache fallback failed to create '{ContainerName}' container via SharedKey. " +
             "HTTP status: {HttpStatusCode}. Response: {ResponseText}",
-            ContainerName,
+            option.ContainerName,
             (int)createResponse.StatusCode,
             responseText);
 
