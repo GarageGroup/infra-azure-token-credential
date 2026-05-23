@@ -15,7 +15,7 @@ partial class AccessTokenRemoteCache
         using var httpClient = BuildHttpClient();
         using var httpRequest = new HttpRequestMessage(
             method: HttpMethod.Get,
-            requestUri: BuildSignedUrl(permissions: PermissionsRead, fileName: BuildFileName(requestContext)));
+            requestUri: BuildSignedUrl(permissions: PermissionsRead, fileName: BuildBlobName(requestContext)));
 
         var httpResponse = await SendAsync(
             httpClient: httpClient,

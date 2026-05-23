@@ -44,6 +44,17 @@ partial class AccessTokenRemoteCache
     private async Task<TokenContextSetOut> ReadContextsAsync(HttpClient httpClient, string? nextMarker, CancellationToken cancellationToken)
     {
         var urlParamsBuilder = new StringBuilder("restype=container&comp=list");
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            urlParamsBuilder = urlParamsBuilder.Append("&include=tags");
+        }
+        else
+        {
+            urlParamsBuilder = urlParamsBuilder
+                .Append("&prefix=")
+                .Append(Uri.EscapeDataString(folder + "/"));
+        }
+
         if (string.IsNullOrWhiteSpace(nextMarker) is false)
         {
             urlParamsBuilder = urlParamsBuilder.Append("&marker=").Append(Uri.EscapeDataString(nextMarker));
@@ -51,7 +62,7 @@ partial class AccessTokenRemoteCache
 
         using var httpRequest = new HttpRequestMessage(
             method: HttpMethod.Get,
-            requestUri: BuildSignedUrl(permissions: PermissionsList, urlParams: urlParamsBuilder.ToString()));
+            requestUri: BuildSignedUrl(permissions: GetPermissionsForList(), urlParams: urlParamsBuilder.ToString()));
 
         var httpResponse = await SendAsync(
             httpClient: httpClient,
@@ -91,6 +102,11 @@ partial class AccessTokenRemoteCache
 
         foreach (var blob in xmlDocument.Descendants(xmlNamespace + "Blob"))
         {
+            if (IsMatch(blob, xmlNamespace) is false)
+            {
+                continue;
+            }
+
             var name = blob.Element(xmlNamespace + "Name")?.Value;
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -141,6 +157,47 @@ partial class AccessTokenRemoteCache
         var json = await httpResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var context = JsonSerializer.Deserialize<TokenCacheItemJson>(json, SerializerOptions)?.Context;
         return context?.ToModel();
+    }
+
+    private bool IsMatch(XElement blobElement, XNamespace xmlNamespace)
+    {
+        if (string.IsNullOrWhiteSpace(folder) is false)
+        {
+            return true;
+        }
+
+        foreach (var tagElement in blobElement.Descendants(xmlNamespace + "Tag"))
+        {
+            var key = GetElementValueIgnoreCase(tagElement, xmlNamespace, "Key");
+            if (string.Equals(key, TypeTagKey, StringComparison.Ordinal) is false)
+            {
+                continue;
+            }
+
+            var value = GetElementValueIgnoreCase(tagElement, xmlNamespace, "Value");
+            return string.Equals(value, TypeTagDefaultValue, StringComparison.Ordinal);
+        }
+
+        return false;
+    }
+
+    private static string? GetElementValueIgnoreCase(XElement parentElement, XNamespace xmlNamespace, string elementName)
+    {
+        var element = parentElement.Element(xmlNamespace + elementName);
+        if (element is not null)
+        {
+            return element.Value;
+        }
+
+        foreach (var childElement in parentElement.Elements())
+        {
+            if (string.Equals(childElement.Name.LocalName, elementName, StringComparison.OrdinalIgnoreCase))
+            {
+                return childElement.Value;
+            }
+        }
+
+        return null;
     }
 
     private sealed record class TokenContextSetOut

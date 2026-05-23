@@ -23,7 +23,7 @@ internal sealed partial class AccessTokenRemoteCache
         =>
         SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    internal static AccessTokenRemoteCache? InternalResolveStandard(IServiceProvider serviceProvider)
+    internal static AccessTokenRemoteCache? InternalResolveStandard(IServiceProvider serviceProvider, string? folder = null)
     {
         var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<AccessTokenRemoteCache>();
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -37,8 +37,15 @@ internal sealed partial class AccessTokenRemoteCache
         return new(
             option: storageOption,
             httpHandler: serviceProvider.GetRequiredService<ISocketsHttpHandlerProvider>().GetOrCreate(string.Empty),
+            folder: NormalizeFolder(folder),
             logger: logger);
     }
+
+    private const string TypeTagKey = "type";
+
+    private const string TypeTagDefaultValue = "default";
+
+    private const string TypeTagDefaultHeaderValue = $"{TypeTagKey}={TypeTagDefaultValue}";
 
     private const int SasTokenTtlInSeconds = 60;
 
@@ -52,9 +59,13 @@ internal sealed partial class AccessTokenRemoteCache
 
     private const string PermissionsList = "l";
 
+    private const string PermissionsListWithTags = "lt";
+
     private const string PermissionsRead = "r";
 
     private const string PermissionsUpload = "w";
+
+    private const string PermissionsUploadWithTags = "wt";
 
     private const string SasVersion = "2022-11-02";
 
@@ -66,12 +77,16 @@ internal sealed partial class AccessTokenRemoteCache
 
     private readonly SocketsHttpHandler httpHandler;
 
+    private readonly string? folder;
+
     private readonly ILogger? logger;
 
-    private AccessTokenRemoteCache(StorageOption option, SocketsHttpHandler httpHandler, ILogger<AccessTokenRemoteCache>? logger)
+    private AccessTokenRemoteCache(
+        StorageOption option, SocketsHttpHandler httpHandler, string? folder, ILogger<AccessTokenRemoteCache>? logger)
     {
         this.option = option;
         this.httpHandler = httpHandler;
+        this.folder = folder;
         this.logger = logger;
     }
 
@@ -198,22 +213,7 @@ internal sealed partial class AccessTokenRemoteCache
         var canonicalizedHeaders = $"x-ms-date:{utcDate}\nx-ms-version:{SasVersion}";
         var canonicalizedResource = BuildCanonicalizedResource(requestUri);
 
-        const string empty = "";
-        var stringToSign = string.Join('\n',
-            method.Method,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            empty,
-            canonicalizedHeaders,
-            canonicalizedResource);
+        var stringToSign = $"{method.Method}\n\n\n\n\n\n\n\n\n\n\n\n{canonicalizedHeaders}\n{canonicalizedResource}";
 
         using var hmac = new HMACSHA256(Convert.FromBase64String(option.AccountKey));
         var signature = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(stringToSign)));
@@ -313,33 +313,15 @@ internal sealed partial class AccessTokenRemoteCache
             pathBuilder = pathBuilder.Append('/').Append(fileName);
         }
 
-        string[] signParameters =
-        [
-            permissions,
-            string.Empty,
-            expiryTime,
-            pathBuilder.ToString(),
-            string.Empty,
-            string.Empty,
-            option.EndpointsProtocol,
-            SasVersion,
-            resource,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty
-        ];
-
         var urlBuilder = new StringBuilder($"/{option.ContainerName}");
         if (string.IsNullOrEmpty(fileName) is false)
         {
             urlBuilder = urlBuilder.Append('/').Append(fileName);
         }
 
-        var dataToSign = Encoding.UTF8.GetBytes(string.Join('\n', signParameters));
+        var dataToSign = Encoding.UTF8.GetBytes(
+            $"{permissions}\n\n{expiryTime}\n{pathBuilder}\n\n\n{option.EndpointsProtocol}\n{SasVersion}\n{resource}\n\n\n\n\n\n\n");
+
         var signature = Convert.ToBase64String(hashAlgorithm.ComputeHash(dataToSign));
 
         var escapedSignature = Uri.EscapeDataString(signature);
@@ -387,13 +369,38 @@ internal sealed partial class AccessTokenRemoteCache
             return null;
         }
 
-        var expectedPrefix = $"{accountName}.blob.";
-        if (uri.Host.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+        var expectedfolder = $"{accountName}.blob.";
+        if (uri.Host.StartsWith(expectedfolder, StringComparison.OrdinalIgnoreCase))
         {
-            return uri.Host[expectedPrefix.Length..];
+            return uri.Host[expectedfolder.Length..];
         }
 
         return null;
+    }
+
+    private string BuildBlobName(TokenRequestContext requestContext)
+    {
+        var fileName = BuildFileName(requestContext);
+        return string.IsNullOrWhiteSpace(folder) ? fileName : $"{folder}/{fileName}";
+    }
+
+    private string GetPermissionsForList()
+        =>
+        string.IsNullOrWhiteSpace(folder) ? PermissionsListWithTags : PermissionsList;
+
+    private string GetPermissionsForUpload()
+        =>
+        string.IsNullOrWhiteSpace(folder) ? PermissionsUploadWithTags : PermissionsUpload;
+
+    private static string? NormalizeFolder(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return null;
+        }
+
+        var parts = folder.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length is 0 ? null : string.Join('/', parts);
     }
 
     private static string BuildFileName(TokenRequestContext requestContext)
