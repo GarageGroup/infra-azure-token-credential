@@ -6,6 +6,16 @@ namespace GarageGroup.Infra;
 
 internal static class AzureTokenCredentialOptionResolver
 {
+    private const string TokenCredentialSectionName = "AzureTokenCredential";
+
+    private const string TokenCredentialTokenTypeKey = "TokenType";
+
+    private const string TokenCredentialTenantIdKey = "TenantId";
+
+    private const string TokenCredentialClientIdKey = "ClientId";
+
+    private const string TokenCredentialClientSecretKey = "ClientSecret";
+
     private const string StandardTokenTypeKey = "AZURE_TOKEN_TYPE";
 
     private const string StandardTenantIdKey = "AZURE_TENANT_ID";
@@ -18,26 +28,34 @@ internal static class AzureTokenCredentialOptionResolver
     {
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
-        var tokenTypeText = configuration[StandardTokenTypeKey];
-        if (Enum.TryParse<AzureTokenType>(tokenTypeText, true, out var tokenType) is false)
+        var section = configuration.GetSection(TokenCredentialSectionName);
+        if (section.Exists())
         {
-            throw new InvalidOperationException(
-                $"Unexpected {StandardTokenTypeKey} value: '{tokenTypeText}'. " +
-                $"Available values: {string.Join(", ", Enum.GetNames<AzureTokenType>())}.");
+            return section.ReadFromSection();
         }
 
         return new()
         {
-            TokenType = tokenType,
+            TokenType = configuration.GetAzureTokenType(StandardTokenTypeKey),
             TenantId = configuration[StandardTenantIdKey],
             ClientId = configuration[StandardClientIdKey],
             ClientSecret = configuration[StandardClientSecretKey],
         };
     }
 
-    private static AzureTokenType? GetAzureTokenType(this IConfiguration configuration)
+    private static AzureTokenCredentialOption ReadFromSection(this IConfigurationSection section)
+        =>
+        new()
+        {
+            TokenType = section.GetAzureTokenType(TokenCredentialTokenTypeKey),
+            TenantId = section[TokenCredentialTenantIdKey],
+            ClientId = section[TokenCredentialClientIdKey],
+            ClientSecret = section[TokenCredentialClientSecretKey],
+        };
+
+    private static AzureTokenType? GetAzureTokenType(this IConfiguration configuration, string tokenTypeKey)
     {
-        var tokenTypeText = configuration[StandardTokenTypeKey];
+        var tokenTypeText = configuration[tokenTypeKey];
         if (string.IsNullOrWhiteSpace(tokenTypeText))
         {
             return null;
@@ -46,8 +64,7 @@ internal static class AzureTokenCredentialOptionResolver
         if (Enum.TryParse<AzureTokenType>(tokenTypeText, true, out var tokenType) is false)
         {
             throw new InvalidOperationException(
-                $"Unexpected {StandardTokenTypeKey} value: '{tokenTypeText}'. " +
-                $"Available values: {string.Join(", ", Enum.GetNames<AzureTokenType>())}.");
+                $"Unexpected {tokenTypeKey} value: '{tokenTypeText}'. Available values: {string.Join(", ", Enum.GetNames<AzureTokenType>())}.");
         }
 
         return tokenType;
