@@ -113,4 +113,25 @@ partial class TokenCredentialHttpHandlerDependency
                 TokenType.ResourceToken);
         }
     }
+
+    public static Dependency<HttpMessageHandler> UseTokenCredentialResource(
+        this Dependency<HttpMessageHandler> dependency,
+        Func<IServiceProvider, TokenCredential> tokenCredentialResolver)
+    {
+        ArgumentNullException.ThrowIfNull(dependency);
+        ArgumentNullException.ThrowIfNull(tokenCredentialResolver);
+
+        return dependency.Map<HttpMessageHandler>(ResolveHandler);
+
+        TokenCredentialHandler ResolveHandler(IServiceProvider serviceProvider, HttpMessageHandler httpMessageHandler)
+        {
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            ArgumentNullException.ThrowIfNull(httpMessageHandler);
+
+            return new(
+                httpMessageHandler,
+                tokenCredentialResolver.Invoke(serviceProvider),
+                TokenType.ResourceToken);
+        }
+    }
 }

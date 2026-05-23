@@ -14,7 +14,32 @@ public static class TokenCredentialServiceCollectionExtensions
         static TokenCredential ResolveTokenCredentialStandard(IServiceProvider serviceProvider)
         {
             ArgumentNullException.ThrowIfNull(serviceProvider);
-            return TokenCredentialProvider.InternalResolveStandard(serviceProvider).GetTokenCredential();
+
+            var provider = new TokenCredentialProvider(
+                option: AzureTokenCredentialOptionResolver.ResolveStandard(serviceProvider));
+
+            return provider.GetTokenCredential();
+        }
+    }
+
+    public static IServiceCollection AddKeyedTokenCredentialSingleton(
+        this IServiceCollection services,
+        Func<IServiceProvider, AzureTokenCredentialOption> optionResolver,
+        object? serviceKey)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(optionResolver);
+
+        return services.AddKeyedSingleton(serviceKey, ResolveTokenCredentialStandard);
+
+        TokenCredential ResolveTokenCredentialStandard(IServiceProvider serviceProvider, object? _)
+        {
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+
+            var provider = new TokenCredentialProvider(
+                option: optionResolver.Invoke(serviceProvider));
+
+            return provider.GetTokenCredential();
         }
     }
 
@@ -28,9 +53,34 @@ public static class TokenCredentialServiceCollectionExtensions
             ArgumentNullException.ThrowIfNull(serviceProvider);
 
             return new(
-                credentialProvider: TokenCredentialProvider.InternalResolveStandard(serviceProvider),
-                inMemoryCache: AccessTokenInMemoryCache.Instance,
+                credentialProvider: new(
+                    option: AzureTokenCredentialOptionResolver.ResolveStandard(serviceProvider)),
+                inMemoryCache: AccessTokenInMemoryCache.Default,
                 remoteCache: AccessTokenRemoteCache.InternalResolveStandard(serviceProvider));
+        }
+    }
+
+    public static IServiceCollection AddKeyedRefreshableTokenCredentialAsSingleton(
+        this IServiceCollection services,
+        Func<IServiceProvider, AzureTokenCredentialOption> optionResolver,
+        string tagName,
+        object? serviceKey)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(optionResolver);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+
+        return services.AddKeyedSingleton(serviceKey, ResolveRefreshableTokenCredentialStandard);
+
+        TokenCredential ResolveRefreshableTokenCredentialStandard(IServiceProvider serviceProvider, object? _)
+        {
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+
+            return new RefreshableTokenCredential(
+                credentialProvider: new(
+                    option: optionResolver.Invoke(serviceProvider)),
+                inMemoryCache: new(),
+                remoteCache: AccessTokenRemoteCache.InternalResolveStandard(serviceProvider, tagName));
         }
     }
 }

@@ -5,13 +5,9 @@ namespace GarageGroup.Infra;
 
 internal sealed partial class AccessTokenInMemoryCache
 {
-    internal static readonly AccessTokenInMemoryCache Instance
+    internal static readonly AccessTokenInMemoryCache Default
         =
         new();
-
-    private AccessTokenInMemoryCache()
-    {
-    }
 
     private const int ExpirationPeriodInMinutes = 3;
 

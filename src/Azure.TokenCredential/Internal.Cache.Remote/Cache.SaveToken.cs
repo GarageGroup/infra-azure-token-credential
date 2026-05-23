@@ -95,6 +95,7 @@ partial class AccessTokenRemoteCache
             requestUri: BuildSignedUrl(permissions: PermissionsUpload, fileName: BuildFileName(requestContext)));
         
         httpRequest.Headers.TryAddWithoutValidation("x-ms-blob-type", "BlockBlob");
+        httpRequest.Headers.TryAddWithoutValidation("x-ms-tags", TypeTagDefaultHeaderValue);
         httpRequest.Headers.TryAddWithoutValidation("x-ms-version", SasVersion);
         httpRequest.Content = new StringContent(body, Encoding.UTF8);
         httpRequest.Content.Headers.ContentType = new("application/json");
