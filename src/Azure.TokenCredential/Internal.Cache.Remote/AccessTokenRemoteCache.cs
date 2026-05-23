@@ -8,7 +8,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
 using Azure.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +23,7 @@ internal sealed partial class AccessTokenRemoteCache
         =>
         SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    internal static AccessTokenRemoteCache? InternalResolveStandard(IServiceProvider serviceProvider, string? prefix = null)
+    internal static AccessTokenRemoteCache? InternalResolveStandard(IServiceProvider serviceProvider, string? folder = null)
     {
         var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<AccessTokenRemoteCache>();
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -38,7 +37,7 @@ internal sealed partial class AccessTokenRemoteCache
         return new(
             option: storageOption,
             httpHandler: serviceProvider.GetRequiredService<ISocketsHttpHandlerProvider>().GetOrCreate(string.Empty),
-            prefix: HttpUtility.UrlEncode(prefix),
+            folder: NormalizeFolder(folder),
             logger: logger);
     }
 
@@ -58,11 +57,15 @@ internal sealed partial class AccessTokenRemoteCache
 
     private const string BlobResource = "b";
 
-    private const string PermissionsList = "lt";
+    private const string PermissionsList = "l";
+
+    private const string PermissionsListWithTags = "lt";
 
     private const string PermissionsRead = "r";
 
-    private const string PermissionsUpload = "wt";
+    private const string PermissionsUpload = "w";
+
+    private const string PermissionsUploadWithTags = "wt";
 
     private const string SasVersion = "2022-11-02";
 
@@ -74,16 +77,16 @@ internal sealed partial class AccessTokenRemoteCache
 
     private readonly SocketsHttpHandler httpHandler;
 
-    private readonly string? prefix;
+    private readonly string? folder;
 
     private readonly ILogger? logger;
 
     private AccessTokenRemoteCache(
-        StorageOption option, SocketsHttpHandler httpHandler, string? prefix, ILogger<AccessTokenRemoteCache>? logger)
+        StorageOption option, SocketsHttpHandler httpHandler, string? folder, ILogger<AccessTokenRemoteCache>? logger)
     {
         this.option = option;
         this.httpHandler = httpHandler;
-        this.prefix = prefix;
+        this.folder = folder;
         this.logger = logger;
     }
 
@@ -366,13 +369,38 @@ internal sealed partial class AccessTokenRemoteCache
             return null;
         }
 
-        var expectedPrefix = $"{accountName}.blob.";
-        if (uri.Host.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+        var expectedfolder = $"{accountName}.blob.";
+        if (uri.Host.StartsWith(expectedfolder, StringComparison.OrdinalIgnoreCase))
         {
-            return uri.Host[expectedPrefix.Length..];
+            return uri.Host[expectedfolder.Length..];
         }
 
         return null;
+    }
+
+    private string BuildBlobName(TokenRequestContext requestContext)
+    {
+        var fileName = BuildFileName(requestContext);
+        return string.IsNullOrWhiteSpace(folder) ? fileName : $"{folder}/{fileName}";
+    }
+
+    private string GetPermissionsForList()
+        =>
+        string.IsNullOrWhiteSpace(folder) ? PermissionsListWithTags : PermissionsList;
+
+    private string GetPermissionsForUpload()
+        =>
+        string.IsNullOrWhiteSpace(folder) ? PermissionsUploadWithTags : PermissionsUpload;
+
+    private static string? NormalizeFolder(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return null;
+        }
+
+        var parts = folder.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length is 0 ? null : string.Join('/', parts);
     }
 
     private static string BuildFileName(TokenRequestContext requestContext)

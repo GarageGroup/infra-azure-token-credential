@@ -43,7 +43,18 @@ partial class AccessTokenRemoteCache
 
     private async Task<TokenContextSetOut> ReadContextsAsync(HttpClient httpClient, string? nextMarker, CancellationToken cancellationToken)
     {
-        var urlParamsBuilder = new StringBuilder("restype=container&comp=list&include=tags");
+        var urlParamsBuilder = new StringBuilder("restype=container&comp=list");
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            urlParamsBuilder = urlParamsBuilder.Append("&include=tags");
+        }
+        else
+        {
+            urlParamsBuilder = urlParamsBuilder
+                .Append("&prefix=")
+                .Append(Uri.EscapeDataString(folder + "/"));
+        }
+
         if (string.IsNullOrWhiteSpace(nextMarker) is false)
         {
             urlParamsBuilder = urlParamsBuilder.Append("&marker=").Append(Uri.EscapeDataString(nextMarker));
@@ -51,7 +62,7 @@ partial class AccessTokenRemoteCache
 
         using var httpRequest = new HttpRequestMessage(
             method: HttpMethod.Get,
-            requestUri: BuildSignedUrl(permissions: PermissionsList, urlParams: urlParamsBuilder.ToString()));
+            requestUri: BuildSignedUrl(permissions: GetPermissionsForList(), urlParams: urlParamsBuilder.ToString()));
 
         var httpResponse = await SendAsync(
             httpClient: httpClient,
@@ -91,7 +102,7 @@ partial class AccessTokenRemoteCache
 
         foreach (var blob in xmlDocument.Descendants(xmlNamespace + "Blob"))
         {
-            if (HasExpectedTypeTag(blob, xmlNamespace) is false)
+            if (IsMatch(blob, xmlNamespace) is false)
             {
                 continue;
             }
@@ -148,8 +159,13 @@ partial class AccessTokenRemoteCache
         return context?.ToModel();
     }
 
-    private bool HasExpectedTypeTag(XElement blobElement, XNamespace xmlNamespace)
+    private bool IsMatch(XElement blobElement, XNamespace xmlNamespace)
     {
+        if (string.IsNullOrWhiteSpace(folder) is false)
+        {
+            return true;
+        }
+
         foreach (var tagElement in blobElement.Descendants(xmlNamespace + "Tag"))
         {
             var key = GetElementValueIgnoreCase(tagElement, xmlNamespace, "Key");
@@ -159,7 +175,7 @@ partial class AccessTokenRemoteCache
             }
 
             var value = GetElementValueIgnoreCase(tagElement, xmlNamespace, "Value");
-            return string.Equals(value, tagName, StringComparison.Ordinal);
+            return string.Equals(value, TypeTagDefaultValue, StringComparison.Ordinal);
         }
 
         return false;
